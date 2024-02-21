@@ -2230,10 +2230,9 @@ CPU インターフェースファイル
 	下に置かれます。
 
 	上限の超過は決して OOM killer を呼び出すことはありません。極限
-	の状態下では、制限値を超えるかもしれません。 The high
-	limit should be used in scenarios where an external process
-	monitors the limited cgroup to alleviate heavy reclaim
-	pressure.
+	の状態下では、制限値を超えるかもしれません。"high" 制限は、外
+	部プロセスが制限された cgroup をモニターし、激しい回収圧力を軽
+	減するようなシナリオで使うべきです。
 
 ..
   memory.max
@@ -2258,24 +2257,19 @@ CPU インターフェースファイル
 	読み書き可能な単一の値を含むファイルです。root 以外の cgroup
 	に存在します。デフォルト値は "max" です。
 
-	Memory usage hard limit.  This is the main mechanism to limit
-	memory usage of a cgroup.  If a cgroup's memory usage reaches
-	this limit and can't be reduced, the OOM killer is invoked in
-	the cgroup. Under certain circumstances, the usage may go
-	over the limit temporarily.
-	（ここから古い訳）
-	メモリ使用量のハードリミットで、最後の保護メカニズムです。
-	cgroup のメモリ使用量がこの制限に達し、減らすことができない場
-	合、OOM killer が cgroup内で呼びだされます。特定の環境下では、
-	使用量が一時的に制限を超えるかもしれません。
-	（ここまで古い訳）
+	メモリー使用量のハードリミットです。これは cgroup のメモリー使
+	用量を制限する主要メカニズムです。cgroup のメモリー使用量がこ
+	の制限に達し、減らせない場合は、OOM Killer が cgroup で起動さ
+	れます。特定の環境下では、使用量は一時的に制限を超えるかもしれ
+	ません。
 
-	In default configuration regular 0-order allocations always
-	succeed unless OOM killer chooses current task as a victim.
+	デフォルトの設定では、OOM Killer が犠牲者として今のタスクを選
+	ばない限り、0 次のアロケーションは常に成功するでしょう。
 
-	Some kinds of allocations don't invoke the OOM killer.
-	Caller could retry them differently, return into userspace
-	as -ENOMEM or silently ignore in cases like disk readahead.
+	ある種のアロケーションは OOM Killer を呼び出しません。呼び出し
+	元は、別の方法でそれらをリトライしたり、-ENOMEM でユーザー空間
+	に戻ったり、ディスクの先読みのような場合に黙って無視したりする
+	ことができます。
 
   memory.reclaim
 	A write-only nested-keyed file which exists for all cgroups.
