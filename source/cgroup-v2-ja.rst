@@ -296,6 +296,7 @@ cgroup v2 は現時点では次のオプションが使えます。
         間以外からのマウントでは無視されます。詳しくは権限委譲のセクショ
         ンを参照してください。
 
+..
   favordynmods
         Reduce the latencies of dynamic cgroup modifications such as
         task migrations and controller on/offs at the cost of making
@@ -303,7 +304,17 @@ cgroup v2 は現時点では次のオプションが使えます。
         The static usage pattern of creating a cgroup, enabling
         controllers, and then seeding it with CLONE_INTO_CGROUP is
         not affected by this option.
+..
 
+  favordynmods
+        fork や exit などのホットパス操作のコストが高くなる代わりに、
+        タスクの移動やコントローラーのオンオフと言った、動的な cgroup
+        を変更する際のレイテンシーを減らします。cgroup を作成し、コン
+        トローラーを有効化し、CLONE_INTO_CGROUP を指定して生成（seed）
+        するという静的な使用パターンは、このオプションの影響を受けませ
+        ん。
+
+..
   memory_localevents
         Only populate memory.events with data for the current cgroup,
         and not any subtrees. This is legacy behaviour, the default
@@ -311,7 +322,18 @@ cgroup v2 は現時点では次のオプションが使えます。
         This option is system wide and can only be set on mount or
         modified through remount from the init namespace. The mount
         option is ignored on non-init namespace mounts.
+..
 
+  memory_localevents
+        memory.events に、現在の cgroup のデータのみを追加し、サブツリー
+        のデータは追加しません。これはレガシーな動作です。このオプショ
+        ンがないデフォルトの動作は、サブツリーのカウントを含みます。こ
+        のオプションはシステムワイドのオプションで、
+        マウント時か、初期（init）の Namespace から再マウントする時し
+        か変更できません。マウントオプションは、非初期の Namespace の
+        マウントでは無視されます。
+
+..
   memory_recursiveprot
         Recursively apply memory.min and memory.low protection to
         entire subtrees, without requiring explicit downward
@@ -321,6 +343,16 @@ cgroup v2 は現時点では次のオプションが使えます。
         behavior but is a mount-option to avoid regressing setups
         relying on the original semantics (e.g. specifying bogusly
         high 'bypass' protection values at higher tree levels).
+..
+
+  memory_recursiveprot
+        リーフ cgroup への明示的な下方伝播を必要とせずに、memory.min
+        と memory.low 保護をサブツリー全体に再帰的に適用します。これに
+        より、サブツリー間での自由な競争を維持しながら、サブツリー全体
+        を相互に保護できます。これはデフォルトの動作であるはずですが、
+        元のセマンティクスに依存する、これを退行させるような設定を防ぐ
+        ためのマウントオプションです（例えば、より高いツリーレベルで、
+        偽りの高い「バイパス」保護値を指定するような）。
 
   memory_hugetlb_accounting
         Count HugeTLB memory usage towards the cgroup's overall
