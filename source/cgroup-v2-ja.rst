@@ -1325,7 +1325,7 @@ cgroup には、独占的にある量の有限のリソースが割り当てら�
 	...
 
   スペース区切りの値
-  （読み込み専用か、複数の値を一度の書きこめる場合）
+  （読み込み専用か、複数の値を一度に書きこめる場合）
 
 	VAL0 VAL1 ...\n
 
@@ -2303,6 +2303,7 @@ CPU インターフェースファイル
 	に戻ったり、ディスクの先読みのような場合に黙って無視したりする
 	ことができます。
 
+..
   memory.reclaim
 	A write-only nested-keyed file which exists for all cgroups.
 
@@ -2330,14 +2331,55 @@ CPU インターフェースファイル
 	the memory reclaim normally is not exercised in this case.
 	This means that the networking layer will not adapt based on
 	reclaim induced by memory.reclaim.
+..
 
+  memory.reclaim
+	書き込み専用のネストしたキーのファイル。すべての cgroup に存在
+	します。
+
+	このファイルは、ターゲットの cgroup 内のメモリー回収をトリガー
+	するシンプルなインターフェースです。
+
+	このファイルは単一のキーと回収するバイト数を受け付けます。ネス
+	トしたキーは現時点ではサポートされていません。
+
+	例::
+
+	  echo "1G" > memory.reclaim
+
+	このインターフェースはあとで拡張され、ネストしたキーで回収の動
+	きを設定できるようになるでしょう。例えば、回収するメモリーのタ
+	イプ（anon, file,...）を指定します。
+
+	カーネルはターゲットとなる cgroup から指定を超えて、もしくは指
+	定値より少なく再利用する可能性があることに注意してください。も
+	し指定した量より少ないバイト数の回収だった場合、-EAGAIN が返り
+	ます。
+
+	（このインターフェースによるトリガーされる）積極的な回収は、
+	memory cgroup でのメモリー圧力を示すものではないことに注意して
+	ください。したがって、メモリー回収で通常はトリガーされるソケッ
+	トメモリーバランシングは、このケースでは実行されません。これは、
+	ネットワークレイヤーは memory.reclaim によって起こる回収に合わ
+	せて変化しないことを意味します。
+
+..
   memory.peak
 	A read-only single value file which exists on non-root
 	cgroups.
 
 	The max memory usage recorded for the cgroup and its
 	descendants since the creation of the cgroup.
+..
 
+  memory.peak
+	読み込み専用の単一の値のファイルです。root 以外の cgroup に存
+	在します。
+
+	その cgroup が作成されたあとに、自身とその子孫に対して記録され
+	た最大のメモリー使用量。
+
+..
   memory.oom.group
 	A read-write single value file which exists on non-root
 	cgroups.  The default value is "0".
@@ -2355,6 +2397,21 @@ CPU インターフェースファイル
 	If the OOM killer is invoked in a cgroup, it's not going
 	to kill any tasks outside of this cgroup, regardless
 	memory.oom.group values of ancestor cgroups.
+..
+
+  memory.oom.group
+        読み書き可能な単一の値のファイル。root 以外の cgroup に存在し
+        ます。
+
+        OOM キラーによって、cgroup を分割不可能なワークロードとして扱
+        うかどうかを決定します。設定した場合、cgroup とその子孫
+        （memory cgroup はリーフ cgroup でない場合）に属するすべてのタ
+        スクが同時に kill されるか、まったく kill されないかのどちらか
+        になります。これを使用して、部分的な強制終了を回避し、ワークロー
+        ドの整合性を保証できます。
+
+        OOM から保護されているタスク（oom_score_adj が -1000 に設定）
+        は、例外として扱われ、強制終了されることはありません。
 
 ..
   memory.events
@@ -2404,52 +2461,58 @@ CPU インターフェースファイル
 ..
 
   memory.events
-	読み込み専用のフラットなキーのファイルです。root 以外の cgroup
-	に存在します。以下のエントリが定義されています。特に指定しない
-	限り、このファイルの値の変更はファイルが修正されたイベントを生
-	成します。
+        読み込み専用のフラットなキーのファイルです。root 以外の cgroup
+        に存在します。以下のエントリが定義されています。特に指定しない
+        限り、このファイルの値の変更はファイルが修正されたイベントを生
+        成します。
 
-	Note that all fields in this file are hierarchical and the
-	file modified event can be generated due to an event down the
-	hierarchy. For the local events at the cgroup level see
-	memory.events.local.
+        このファイルのすべてのフィールドは階層構造に対応しており、階層
+        の下位のイベントによって、ファイル変更イベントが生成される可能
+        性があることに注意してください。cgroup レベルでのローカルイベ
+        ントは memory.events.local を見てください。
 
-	  low
-		cgroup で、使用量が low 以下であるにも関わらず、高いメ
-		モリ圧力により回収が行われた回数です。これは、通常は
-		low の値がオーバーコミットされていることを示します。
+          low
+                cgroup で、使用量が low 以下であるにも関わらず、高いメ
+                モリ圧力により回収が行われた回数です。これは、通常は
+                low の値がオーバーコミットされていることを示します。
 
-	  high
-		high の値を超過したため、cgroup のプロセス数が調節され、
-		直接メモリ回収が実行された回数です。グローバルのメモリ
-		圧力よりもhigh の制限でメモリ使用量が制限されている
-		cgroup では、このイベントの発生が起こる可能性がありま
-		す。
+          high
+                high の値を超過したため、cgroup のプロセス数が調節され、
+                直接メモリ回収が実行された回数です。グローバルのメモリ
+                圧力よりもhigh の制限でメモリ使用量が制限されている
+                cgroup では、このイベントの発生が起こる可能性がありま
+                す。
 
-	  max
-		cgroupのメモリ使用量が max 制限を超えようとした回数で
-		す。直接メモリ回収がメモリ使用量の減少に失敗した場合、
-		cgroup は OOM 状態に移行します。
+          max
+                cgroupのメモリ使用量が max 制限を超えようとした回数で
+                す。直接メモリ回収がメモリ使用量の減少に失敗した場合、
+                cgroup は OOM 状態に移行します。
 
-	  oom
-		The number of time the cgroup's memory usage was
-		reached the limit and allocation was about to fail.
+          oom
+                cgroup のメモリ使用量が制限に達し、割り当てが失敗しよ
+                うとした回数。
 
-		This event is not raised if the OOM killer is not
-		considered as an option, e.g. for failed high-order
-		allocations or if caller asked to not retry attempts.
+                OOM Killer がオプションとして考慮されていない場合、こ
+                のイベントは発生しません。例えば、上位の割り当てが失敗
+                した場合や、呼び出し元が再試行しないように要求した場合。
 
-	  oom_kill
-		この cgroup に属するプロセスが、あらゆる種類の OOM
-		killer によって kill された回数。
+          oom_kill
+                この cgroup に属するプロセスが、あらゆる種類の OOM
+                killer によって kill された回数。
 
           oom_group_kill
-                The number of times a group OOM has occurred.
-
+                グループの OOM が発生した回数
+..
   memory.events.local
 	Similar to memory.events but the fields in the file are local
 	to the cgroup i.e. not hierarchical. The file modified event
 	generated on this file reflects only the local events.
+..
+
+  memory.events.local
+	memory.events と同様のファイルですが、ファイル内のフィールドは
+	cgroup ローカルです。つまり階層的ではありません。このファイル
+	の変更イベントは、ローカルイベントだけを反映します。
 
 ..
   memory.stat
@@ -2665,9 +2728,9 @@ CPU インターフェースファイル
 	途中で現れることもあります。項目が決まった位置にあることを期待
 	しないでください。特定の値を見つけるのにはキーを使いましょう!
 
-	If the entry has no per-node counter (or not show in the
-	memory.numa_stat). We use 'npn' (non-per-node) as the tag
-	to indicate that it will not show in the memory.numa_stat.
+	エントリーにノードごとのカウンターがない場合（または
+	memory.numa_stat に表示されない場合）、'npn'（non-per-node）を
+	タグとして利用して、memory.numa_stat に現れないことを示します。
 
 	  anon
 		brk(), sbrk(), mmap(MAP_ANONYMOUS) のような匿名マッピ
@@ -3122,7 +3185,7 @@ IOインターフェースファイル
 ..
 
   io.stat
-	読み込み専用のネストされたキーのファイル。
+	読み込み専用のネストしたキーのファイル。
 
 	行は $MAJ:$MIN というデバイス番号がキーになっており、順番には
 	並んでいません。以下のネストしたキーが定義されています。
@@ -3199,14 +3262,14 @@ IOインターフェースファイル
 ..
 
   io.cost.qos
-	読み書き可能なネストされたキーのファイル。root cgroupにのみ存在します。
+	読み書き可能なネストしたキーのファイル。root cgroupにのみ存在します。
 
 	このファイルは、現時点で "io.weight" 比例制御を実装している IO
 	コストモデルベースのコントローラー（CONFIG_BLK_CGROUP_IOCOST）
 	の QoS を設定します。行は $MAJ:$MIN デバイス番号がキーになって
 	おり、順番には並んでいません。指定されたデバイスに対する行は
 	"io.cost.qos" または "io.cost.model" のデバイスに対する書き込
-	みが最初に行われたときに有効化されます。次のネストされたキーが
+	みが最初に行われたときに有効化されます。次のネストしたキーが
 	定義されます。
 
 	  ======	=====================================
@@ -3298,14 +3361,14 @@ IOインターフェースファイル
 ..
 
   io.cost.model
-	読み書き可能なネストされたキーのファイル。root cgroupにのみ存在します。
+	読み書き可能なネストしたキーのファイル。root cgroupにのみ存在します。
 
 	このファイルは、現在 "io.weight" 比例制御を実装している IO コ
 	ストモデルベースのコントローラー（CONFIG_BLK_CGROUP_IOCOST）の
 	コストモデルを設定します。行は $MAJ:$MIN デバイス番号をキーに
 	しており、ソートはされません。特定デバイスに対する行は
 	"io.cost.qos" か "io.cost.model" に書き込みが合った時点で有効
-	化されます。次のネストされたキーが定義されています。
+	化されます。次のネストしたキーが定義されています。
 
 	  =====		================================
 	  ctrl		"auto" もしくは "user"
@@ -4200,7 +4263,7 @@ RDMA インターフェースファイル
 ..
 
   rdma.max
-	読み書き可能なネストされたキーのファイル。ルート以外のすべての
+	読み書き可能なネストしたキーのファイル。ルート以外のすべての
 	cgroup に存在します。RDMA/IB デバイスに現在設定されているリソー
 	スリミットが記載されています。
 
