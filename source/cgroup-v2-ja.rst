@@ -2088,9 +2088,9 @@ CPU インターフェースファイル
   cgroup are tracked so that the total memory consumption can be
   accounted and controlled to a reasonable extent.  Currently, the
   following types of memory usages are tracked.
-完全ではないものの、トータルのメモリ消費がカウントされ、合理的な範囲に
-制御されることができるように、与えられた cgroup に対するすべての主なメ
-モリ消費が追跡されます。
+完全ではないものの、トータルのメモリ消費をカウントし、適切な範囲でコン
+トロールするため、特定の cgroup に対するすべての主なメモリ消費が追跡さ
+れます。現時点では、次のタイプのメモリ消費が追跡されます。
 
 ..
   - Userland memory - page cache and anonymous memory.
