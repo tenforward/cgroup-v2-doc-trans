@@ -2953,6 +2953,7 @@ CPU インターフェースファイル
 
 	cgroup と自分の子孫が現在使用中の swap の総量。
 
+..
   memory.swap.high
 	A read-write single value file which exists on non-root
 	cgroups.  The default is "max".
@@ -2968,13 +2969,41 @@ CPU インターフェースファイル
 	continue unimpeded as long as other memory can be reclaimed.
 
 	Healthy workloads are not expected to reach this limit.
+..
 
+  memory.swap.high
+	読み書き可能な単一の値を含むファイル。root 以外の cgroup に存
+	在します。デフォルト値は "max"。
+
+	スワップ使用量のスロットル制限。もし、cgroup のスワップ使用量
+	がこの制限を超えると、それ以降の割り当てはすべてスロットルされ、
+	ユーザースペースでカスタムの out-of-memory 処理を実装できるよ
+	うになります。
+
+	この制限は、その cgroup にとって後戻りできないポイントであるこ
+	とを示します。これは、ワークロードが通常のオペレーションを行っ
+	ている間にスワップ使用量を管理するようにはデザインされていませ
+	ん。memory.swap.max と比較すると、memory.swap.max は設定量を超
+	えたスワッピングを禁止しますが、他でメモリーが回収される限りは、
+	制限されることがない状態が継続します。
+
+	正常なワークロードが、この制限に達することは想定されていません。
+
+..
   memory.swap.peak
 	A read-only single value file which exists on non-root
 	cgroups.
 
 	The max swap usage recorded for the cgroup and its
 	descendants since the creation of the cgroup.
+..
+
+  memory.swap.peak
+	読み込み専用の単一の値を含むファイル。root 以外の cgroup に存
+	在します。
+
+	cgroup 作成以来の、その cgroup と子孫のスワップ使用量の最大値
+	が記録されます。
 
 ..
   memory.swap.max
