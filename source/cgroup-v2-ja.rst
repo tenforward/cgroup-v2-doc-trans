@@ -3057,6 +3057,8 @@ CPU インターフェースファイル
 	  high
 		The number of times the cgroup's swap usage was over
 		the high threshold.
+		cgroup のスワップ使用量が high で設定したしきい値を超
+		えた回数。
 
 	  max
 		対象の cgroup の swap 使用量が制限値を超え、スワップの
