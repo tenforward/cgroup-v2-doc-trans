@@ -3055,8 +3055,6 @@ CPU インターフェースファイル
 	生成します。
 
 	  high
-		The number of times the cgroup's swap usage was over
-		the high threshold.
 		cgroup のスワップ使用量が high で設定したしきい値を超
 		えた回数。
 
