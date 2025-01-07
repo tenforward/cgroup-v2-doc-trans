@@ -11,6 +11,7 @@ Welcome to cgroup-v2's documentation!
    :caption: Contents:
 
    cgroup-v2-ja
+   psi-ja
 
 
 Indices and tables
