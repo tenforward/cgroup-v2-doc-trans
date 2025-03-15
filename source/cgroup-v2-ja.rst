@@ -1832,6 +1832,7 @@ cgroup コアファイルはすべて "cgroup." というプレフィックス�
 	it's possible to delete a frozen (and empty) cgroup, as well as
 	create new sub-cgroups.
 
+..
   cgroup.kill
 	A write-only single value file which exists in non-root cgroups.
 	The only allowed value is "1".
@@ -1846,6 +1847,22 @@ cgroup コアファイルはすべて "cgroup." というプレフィックス�
 	In a threaded cgroup, writing this file fails with EOPNOTSUPP as
 	killing cgroups is a process directed operation, i.e. it affects
 	the whole thread-group.
+..
+
+  cgroup.kill
+	単一の値を書き込むだけのファイルです。root 以外の cgroup に存在します。
+	書き込むことが許される値は "1" のみです。
+
+	"1" をこのファイルに書き込むと、cgroup とすべての子孫の cgroup
+	が kill されます。つまり、影響を受ける cgroup ツリー内にあるす
+	べてのプロセスが SIGKILL によって強制終了されます。
+
+	cgroup ツリーを kill すると、同時に起こる fork は適切に処理され、移
+	行から保護されます。
+
+	スレッド化された cgroup では、このファイルへの書き込みは
+	EOPNOTSUPP で失敗します。これは、cgroup の kill はプロセス指向
+	の処理であるため、すなわちすべてのスレッド化グループに影響するためです。
 
   cgroup.pressure
 	A read-write single value file that allowed values are "0" and "1".
