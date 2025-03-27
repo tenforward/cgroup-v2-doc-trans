@@ -71,13 +71,14 @@ Control Group v2
      5-6. Device
      5-7. RDMA
        5-7-1. RDMA Interface Files
-     5-8. HugeTLB
-       5.8-1. HugeTLB Interface Files
-     5-9. Misc
-       5.9-1 Miscellaneous cgroup Interface Files
-       5.9-2 Migration and Ownership
-     5-10. Others
-       5-10-1. perf_event
+     5-8. DMEM
+     5-9. HugeTLB
+       5.9-1. HugeTLB Interface Files
+     5-10. Misc
+       5.10-1 Miscellaneous cgroup Interface Files
+       5.10-2 Migration and Ownership
+     5-11. Others
+       5-11-1. perf_event
      5-N. Non-normative information
        5-N-1. CPU controller root cgroup process behaviour
        5-N-2. IO controller root cgroup process behaviour
@@ -382,6 +383,14 @@ cgroup v2 は現時点では次のオプションが使えます。
         * HugeTLB pages utilized while this option is not selected
           will not be tracked by the memory controller (even if cgroup
           v2 is remounted later on).
+
+  pids_localevents
+        The option restores v1-like behavior of pids.events:max, that is only
+        local (inside cgroup proper) fork failures are counted. Without this
+        option pids.events.max represents any pids.max enforcemnt across
+        cgroup's subtree.
+
+
 
 ..
   Organizing Processes and Threads
@@ -956,17 +965,22 @@ cgroup はふたつの方法で権限委譲できます。ひとつ目は、特�
   Because the resource control interface files in a given directory
   control the distribution of the parent's resources, the delegatee
   shouldn't be allowed to write to them.  For the first method, this is
-  achieved by not granting access to these files.  For the second, the
-  kernel rejects writes to all files other than "cgroup.procs" and
-  "cgroup.subtree_control" on a namespace root from inside the
-  namespace.
+  achieved by not granting access to these files.  For the second, files
+  outside the namespace should be hidden from the delegatee by the means
+  of at least mount namespacing, and the kernel rejects writes to all
+  files on a namespace root from inside the cgroup namespace, except for
+  those files listed in "/sys/kernel/cgroup/delegate" (including
+  "cgroup.procs", "cgroup.threads", "cgroup.subtree_control", etc.).
+
 与えられたディレクトリにあるリソースコントロールファイルは、親のリソー
 スの分配をコントロールするので、委任された側はそれらへの書き込みを許さ
 れるべきではありません。最初の方法では、これはこれらのファイルへのアク
-セスを許可しないことで実現されます。ふたつ目の方法では、カーネルが、名
-前空間内から名前空間の root にある "cgroup.procs"、
-"cgroup.subtree_control" 以外のすべてのファイルへのアクセスを拒否する
-ことで実現されます。
+セスを許可しないことで実現されます。ふたつ目の方法では、名前空間外のファ
+イルは少なくともマウント名前空間によって委任先から隠す必要があり、カー
+ネルは cgroup 名前空間内からの名前空間ルート上のすべてのファイルへの書
+き込みを拒否します。ただし、"/sys/kernel/cgroup/delegate" にリストされ
+ているファイル ("cgroup.procs"、"cgroup.threads"、
+"cgroup.subtree_control" などを含む) は除きます。
 
 ..
   The end results are equivalent for both delegation types.  Once
@@ -1790,6 +1804,14 @@ cgroup コアファイルはすべて "cgroup." というプレフィックス�
 
 		A dying cgroup can consume system resources not exceeding
 		limits, which were active at the moment of cgroup deletion.
+
+	  nr_subsys_<cgroup_subsys>
+		Total number of live cgroup subsystems (e.g memory
+		cgroup) at and beneath the current cgroup.
+
+	  nr_dying_subsys_<cgroup_subsys>
+		Total number of dying cgroup subsystems (e.g. memory
+		cgroup) at and beneath the current cgroup.
 ..
 
   cgroup.stat
@@ -1805,6 +1827,14 @@ cgroup コアファイルはすべて "cgroup." というプレフィックス�
 		プロセスはいかなる状況下でも消滅途中の cgroup に登録できません。消滅途中の cgroup は復活できません。
 
 		消滅途中の cgroup は、cgroup 削除の瞬間にアクティブだった制限を超えない範囲で、システムリソースを消費するかもしれません。
+
+	  nr_subsys_<cgroup_subsys>
+		Total number of live cgroup subsystems (e.g memory
+		cgroup) at and beneath the current cgroup.
+
+	  nr_dying_subsys_<cgroup_subsys>
+		Total number of dying cgroup subsystems (e.g. memory
+		cgroup) at and beneath the current cgroup.
 
   cgroup.freeze
 	A read-write single value file which exists on non-root cgroups.
@@ -1916,20 +1946,29 @@ cpufreq governor about the minimum desired frequency which should always be
 provided by a CPU, as well as the maximum desired frequency, which should not
 be exceeded by a CPU.
 
-..
-  WARNING: cgroup2 doesn't yet support control of realtime processes and
-  the cpu controller can only be enabled when all RT processes are in
-  the root cgroup.  Be aware that system management software may already
-  have placed RT processes into nonroot cgroups during the system boot
-  process, and these processes may need to be moved to the root cgroup
-  before the cpu controller can be enabled.
 
-警告: cgroup2 は、まだリアルタイムプロセスを扱えません。cpu コントロー
-ラーは、すべての RT プロセスが root cgroup にあるときのみ有効化できま
-す。システム管理ソフトウェアが、システムブートプロセス時に root cgroup
-以外に RT プロセスを配置しているかもしれません。これらのプロセスは、
-cpuコントローラーを有効にする前に root cgroup に移動させる必要がありま
-す。
+..
+  WARNING: cgroup2 doesn't yet support control of realtime processes. For
+  a kernel built with the CONFIG_RT_GROUP_SCHED option enabled for group
+  scheduling of realtime processes, the cpu controller can only be enabled
+  when all RT processes are in the root cgroup.  This limitation does
+  not apply if CONFIG_RT_GROUP_SCHED is disabled.  Be aware that system
+  management software may already have placed RT processes into nonroot
+  cgroups during the system boot process, and these processes may need
+  to be moved to the root cgroup before the cpu controller can be enabled
+  with a CONFIG_RT_GROUP_SCHED enabled kernel.
+..
+
+警告: cgroup2 は、リアルタイム プロセスの制御をまだサポートしていませ
+ん。リアルタイム プロセスのグループ スケジューリング用に
+CONFIG_RT_GROUP_SCHED オプションを有効にして構築されたカーネルの場合、
+CPU コントローラは、すべての RT プロセスがルート cgroup にある場合にの
+み有効にできます。この制限は、CONFIG_RT_GROUP_SCHED が無効になっている
+場合は適用されません。システム管理ソフトウェアが、システムのブート プ
+ロセス中に RT プロセスを非ルート cgroup に既に配置している場合があり、
+CONFIG_RT_GROUP_SCHED が有効になっているカーネルで CPU コントローラを
+有効にする前に、これらのプロセスをルート cgroup に移動する必要がある場
+合があることに注意してください。
 
 ..
   CPU Interface Files
@@ -1985,14 +2024,22 @@ CPU インターフェースファイル
 	A read-write single value file which exists on non-root
 	cgroups.  The default is "100".
 
-	The weight in the range [1, 10000].
+	For non idle groups (cpu.idle = 0), the weight is in the
+	range [1, 10000].
+
+	If the cgroup has been configured to be SCHED_IDLE (cpu.idle = 1),
+	then the weight will show as a 0.
 ..
 
   cpu.weight
 	読み書き可能な単一の値が書かれたファイルです。root 以外の
 	cgroup に存在します。デフォルトは "100" です。
 
-	weight の範囲は [1, 10000] です。
+	idle cgroup ではない場合（cpu.idle = 0）、weight の範囲は [1,
+	10000] です。
+
+	cgroup が SCHED_IDLE (cpu.idle = 1) に設定されている場合、
+	weight は 0 として表示されます。
 
 ..
   cpu.weight.nice
@@ -2082,6 +2129,16 @@ CPU インターフェースファイル
         This interface allows reading and setting maximum utilization clamp
         values similar to the sched_setattr(2). This maximum utilization
         value is used to clamp the task specific maximum utilization clamp.
+
+  cpu.idle
+	A read-write single value file which exists on non-root cgroups.
+	The default is 0.
+
+	This is the cgroup analog of the per-task SCHED_IDLE sched policy.
+	Setting this value to a 1 will make the scheduling policy of the
+	cgroup SCHED_IDLE. The threads inside the cgroup will retain their
+	own relative priorities, but the cgroup itself will be treated as
+	very low priority relative to its peers.
 
 
 
@@ -2327,9 +2384,6 @@ CPU インターフェースファイル
 	This is a simple interface to trigger memory reclaim in the
 	target cgroup.
 
-	This file accepts a single key, the number of bytes to reclaim.
-	No nested keys are currently supported.
-
 	Example::
 
 	  echo "1G" > memory.reclaim
@@ -2357,16 +2411,9 @@ CPU インターフェースファイル
 	このファイルは、ターゲットの cgroup 内のメモリー回収をトリガー
 	するシンプルなインターフェースです。
 
-	このファイルは単一のキーと回収するバイト数を受け付けます。ネス
-	トしたキーは現時点ではサポートされていません。
-
 	例::
 
 	  echo "1G" > memory.reclaim
-
-	このインターフェースはあとで拡張され、ネストしたキーで回収の動
-	きを設定できるようになるでしょう。例えば、回収するメモリーのタ
-	イプ（anon, file,...）を指定します。
 
 	カーネルはターゲットとなる cgroup から指定を超えて、もしくは指
 	定値より少なく再利用する可能性があることに注意してください。も
@@ -2380,21 +2427,26 @@ CPU インターフェースファイル
 	ネットワークレイヤーは memory.reclaim によって起こる回収に合わ
 	せて変化しないことを意味します。
 
-..
+The following nested keys are defined.
+
+	  ==========            ================================
+	  swappiness            Swappiness value to reclaim with
+	  ==========            ================================
+
+	Specifying a swappiness value instructs the kernel to perform
+	the reclaim with that swappiness value. Note that this has the
+	same semantics as vm.swappiness applied to memcg reclaim with
+	all the existing limitations and potential future extensions.
+
   memory.peak
-	A read-only single value file which exists on non-root
-	cgroups.
+	A read-write single value file which exists on non-root cgroups.
 
-	The max memory usage recorded for the cgroup and its
-	descendants since the creation of the cgroup.
-..
+	The max memory usage recorded for the cgroup and its descendants since
+	either the creation of the cgroup or the most recent reset for that FD.
 
-  memory.peak
-	読み込み専用の単一の値のファイルです。root 以外の cgroup に存
-	在します。
-
-	その cgroup が作成されたあとに、自身とその子孫に対して記録され
-	た最大のメモリー使用量。
+	A write of any non-empty string to this file resets it to the
+	current memory usage for subsequent reads through the same
+	file descriptor.
 
 ..
   memory.oom.group
@@ -2571,7 +2623,7 @@ CPU インターフェースファイル
 	  sec_pagetables
 		Amount of memory allocated for secondary page tables,
 		this currently includes KVM mmu allocations on x86
-		and arm64.
+		and arm64 and IOMMU page tables.
 
 	  percpu (npn)
 		Amount of memory used for storing per-cpu kernel
@@ -2772,7 +2824,7 @@ CPU インターフェースファイル
 	  sec_pagetables
 		Amount of memory allocated for secondary page tables,
 		this currently includes KVM mmu allocations on x86
-		and arm64.
+		and arm64 and IOMMU page tables.
 
 	  percpu (npn)
 		Amount of memory used for storing per-cpu kernel
@@ -2911,6 +2963,24 @@ CPU インターフェースファイル
 	  pglazyfreed (npn)
 		回収された lazyfree なページ数
 
+	  swpin_zero
+		Number of pages swapped into memory and filled with zero, where I/O
+		was optimized out because the page content was detected to be zero
+		during swapout.
+
+	  swpout_zero
+		Number of zero-filled pages swapped out with I/O skipped due to the
+		content being detected as zero.
+
+	  zswpin
+		Number of pages moved in to memory from zswap.
+
+	  zswpout
+		Number of pages moved out of memory to zswap.
+
+	  zswpwb
+		Number of pages written from zswap to swap.
+
 	  thp_fault_alloc (npn)
 		Number of transparent hugepages which were allocated to satisfy
 		a page fault. This counter is not present when CONFIG_TRANSPARENT_HUGEPAGE
@@ -2929,6 +2999,30 @@ CPU インターフェースファイル
 		Number of transparent hugepages which were split before swapout.
 		Usually because failed to allocate some continuous swap space
 		for the huge page.
+
+	  numa_pages_migrated (npn)
+		Number of pages migrated by NUMA balancing.
+
+	  numa_pte_updates (npn)
+		Number of pages whose page table entries are modified by
+		NUMA balancing to produce NUMA hinting faults on access.
+
+	  numa_hint_faults (npn)
+		Number of NUMA hinting faults.
+
+	  pgdemote_kswapd
+		Number of pages demoted by kswapd.
+
+	  pgdemote_direct
+		Number of pages demoted directly.
+
+	  pgdemote_khugepaged
+		Number of pages demoted by khugepaged.
+
+	  hugetlb
+		Amount of memory used by hugetlb pages. This metric only shows
+		up if hugetlb usage is accounted for in memory.current (i.e.
+		cgroup is mounted with the memory_hugetlb_accounting option).
 
   memory.numa_stat
 	A read-only nested-keyed file which exists on non-root cgroups.
@@ -3006,21 +3100,15 @@ CPU インターフェースファイル
 
 	正常なワークロードが、この制限に達することは想定されていません。
 
-..
   memory.swap.peak
-	A read-only single value file which exists on non-root
-	cgroups.
+	A read-write single value file which exists on non-root cgroups.
 
-	The max swap usage recorded for the cgroup and its
-	descendants since the creation of the cgroup.
-..
+	The max swap usage recorded for the cgroup and its descendants since
+	the creation of the cgroup or the most recent reset for that FD.
 
-  memory.swap.peak
-	読み込み専用の単一の値を含むファイル。root 以外の cgroup に存
-	在します。
-
-	cgroup 作成以来の、その cgroup と子孫のスワップ使用量の最大値
-	が記録されます。
+	A write of any non-empty string to this file resets it to the
+	current memory usage for subsequent reads through the same
+	file descriptor.
 
 ..
   memory.swap.max
@@ -3102,6 +3190,24 @@ CPU インターフェースファイル
 	Zswap usage hard limit. If a cgroup's zswap pool reaches this
 	limit, it will refuse to take any more stores before existing
 	entries fault back in or are written out to disk.
+
+  memory.zswap.writeback
+	A read-write single value file. The default value is "1".
+	Note that this setting is hierarchical, i.e. the writeback would be
+	implicitly disabled for child cgroups if the upper hierarchy
+	does so.
+
+	When this is set to 0, all swapping attempts to swapping devices
+	are disabled. This included both zswap writebacks, and swapping due
+	to zswap store failures. If the zswap store failures are recurring
+	(for e.g if the pages are incompressible), users can observe
+	reclaim inefficiency after disabling writeback (because the same
+	pages might be rejected again and again).
+
+	Note that this is subtly different from setting memory.swap.max to
+	0, as it still allows for pages to be written to the zswap pool.
+	This setting has no effect if zswap is disabled, and swapping
+	is allowed unless memory.swap.max is set to 0.
 
   memory.pressure
 	A read-only nested-keyed file.
@@ -3966,18 +4072,38 @@ PID インターフェースファイル
 
 ..
   pids.current
-	A read-only single value file which exists on all cgroups.
+	A read-only single value file which exists on non-root cgroups.
 
 	The number of processes currently in the cgroup and its
 	descendants.
 ..
 
   pids.current
-	読み込み専用の単一の値のファイルです。すべての cgroup に存在し
+	読み込み専用の単一の値のファイルです。root 以外の cgroup に存在し
 	ます。
 
 	ファイルが存在する cgroup とその子孫の cgroup に属するプロセス
 	数です。
+
+  pids.peak
+	A read-only single value file which exists on non-root cgroups.
+
+	The maximum value that the number of processes in the cgroup and its
+	descendants has ever reached.
+
+  pids.events
+	A read-only flat-keyed file which exists on non-root cgroups. Unless
+	specified otherwise, a value change in this file generates a file
+	modified event. The following entries are defined.
+
+	  max
+		The number of times the cgroup's total number of processes hit the pids.max
+		limit (see also pids_localevents).
+
+  pids.events.local
+	Similar to pids.events but the fields in the file are local
+	to the cgroup i.e. not hierarchical. The file modified event
+	generated on this file reflects only the local events.
 
 ..
   Organisational operations are not blocked by cgroup policies, so it is
@@ -4104,6 +4230,59 @@ Cpuset Interface Files
 
 	Its value will be affected by memory nodes hotplug events.
 
+  cpuset.cpus.exclusive
+	A read-write multiple values file which exists on non-root
+	cpuset-enabled cgroups.
+
+	It lists all the exclusive CPUs that are allowed to be used
+	to create a new cpuset partition.  Its value is not used
+	unless the cgroup becomes a valid partition root.  See the
+	"cpuset.cpus.partition" section below for a description of what
+	a cpuset partition is.
+
+	When the cgroup becomes a partition root, the actual exclusive
+	CPUs that are allocated to that partition are listed in
+	"cpuset.cpus.exclusive.effective" which may be different
+	from "cpuset.cpus.exclusive".  If "cpuset.cpus.exclusive"
+	has previously been set, "cpuset.cpus.exclusive.effective"
+	is always a subset of it.
+
+	Users can manually set it to a value that is different from
+	"cpuset.cpus".	One constraint in setting it is that the list of
+	CPUs must be exclusive with respect to "cpuset.cpus.exclusive"
+	of its sibling.  If "cpuset.cpus.exclusive" of a sibling cgroup
+	isn't set, its "cpuset.cpus" value, if set, cannot be a subset
+	of it to leave at least one CPU available when the exclusive
+	CPUs are taken away.
+
+	For a parent cgroup, any one of its exclusive CPUs can only
+	be distributed to at most one of its child cgroups.  Having an
+	exclusive CPU appearing in two or more of its child cgroups is
+	not allowed (the exclusivity rule).  A value that violates the
+	exclusivity rule will be rejected with a write error.
+
+	The root cgroup is a partition root and all its available CPUs
+	are in its exclusive CPU set.
+
+  cpuset.cpus.exclusive.effective
+	A read-only multiple values file which exists on all non-root
+	cpuset-enabled cgroups.
+
+	This file shows the effective set of exclusive CPUs that
+	can be used to create a partition root.  The content
+	of this file will always be a subset of its parent's
+	"cpuset.cpus.exclusive.effective" if its parent is not the root
+	cgroup.  It will also be a subset of "cpuset.cpus.exclusive"
+	if it is set.  If "cpuset.cpus.exclusive" is not set, it is
+	treated to have an implicit value of "cpuset.cpus" in the
+	formation of local partition.
+
+  cpuset.cpus.isolated
+	A read-only and root cgroup only multiple values file.
+
+	This file shows the set of all isolated CPUs used in existing
+	isolated partitions. It will be empty if no isolated partition
+	is created.
 
   cpuset.cpus.partition
 	A read-write single value file which exists on non-root
@@ -4147,11 +4326,11 @@ Cpuset Interface Files
 	partition or scheduling domain.  The set of exclusive CPUs is
 	determined by the value of its "cpuset.cpus.exclusive.effective".
 
-	When set to "isolated", the CPUs in that partition will
-	be in an isolated state without any load balancing from the
-	scheduler.  Tasks placed in such a partition with multiple
-	CPUs should be carefully distributed and bound to each of the
-	individual CPUs for optimal performance.
+	When set to "isolated", the CPUs in that partition will be in
+	an isolated state without any load balancing from the scheduler
+	and excluded from the unbound workqueues.  Tasks placed in such
+	a partition with multiple CPUs should be carefully distributed
+	and bound to each of the individual CPUs for optimal performance.
 
 	A partition root ("root" or "isolated") can be in one of the
 	two possible states - valid or invalid.  An invalid partition
@@ -4337,6 +4516,49 @@ RDMA インターフェースファイル
 	  mlx4_0 hca_handle=1 hca_object=20
 	  ocrdma1 hca_handle=1 hca_object=23
 
+DMEM
+----
+
+The "dmem" controller regulates the distribution and accounting of
+device memory regions. Because each memory region may have its own page size,
+which does not have to be equal to the system page size, the units are always bytes.
+
+DMEM Interface Files
+~~~~~~~~~~~~~~~~~~~~
+
+  dmem.max, dmem.min, dmem.low
+	A readwrite nested-keyed file that exists for all the cgroups
+	except root that describes current configured resource limit
+	for a region.
+
+	An example for xe follows::
+
+	  drm/0000:03:00.0/vram0 1073741824
+	  drm/0000:03:00.0/stolen max
+
+	The semantics are the same as for the memory cgroup controller, and are
+	calculated in the same way.
+
+  dmem.capacity
+	A read-only file that describes maximum region capacity.
+	It only exists on the root cgroup. Not all memory can be
+	allocated by cgroups, as the kernel reserves some for
+	internal use.
+
+	An example for xe follows::
+
+	  drm/0000:03:00.0/vram0 8514437120
+	  drm/0000:03:00.0/stolen 67108864
+
+  dmem.current
+	A read-only file that describes current resource usage.
+	It exists for all the cgroup except root.
+
+	An example for xe follows::
+
+	  drm/0000:03:00.0/vram0 12550144
+	  drm/0000:03:00.0/stolen 8650752
+
 HugeTLB
 -------
 
@@ -4405,6 +4627,15 @@ Miscellaneous controller provides 3 interface files. If two misc resources (res_
 	  res_a 3
 	  res_b 0
 
+  misc.peak
+        A read-only flat-keyed file shown in all cgroups.  It shows the
+        historical maximum usage of the resources in the cgroup and its
+        children.::
+
+	  $ cat misc.peak
+	  res_a 10
+	  res_b 8
+
   misc.max
         A read-write flat-keyed file shown in the non root cgroups. Allowed
         maximum usage of the resources in the cgroup and its children.::
@@ -4433,6 +4664,11 @@ Miscellaneous controller provides 3 interface files. If two misc resources (res_
 	  max
 		The number of times the cgroup's resource usage was
 		about to go over the max boundary.
+
+  misc.events.local
+        Similar to misc.events but the fields in the file are local to the
+        cgroup i.e. not hierarchical. The file modified event generated on
+        this file reflects only the local events.
 
 Migration and Ownership
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -4744,14 +4980,14 @@ provides a properly isolated cgroup view inside the container.
 	す。
 
 ..
-  wbc_account_cgroup_owner(@wbc, @page, @bytes)
+  wbc_account_cgroup_owner(@wbc, @folio, @bytes)
 	Should be called for each data segment being written out.
 	While this function doesn't care exactly when it's called
 	during the writeback session, it's the easiest and most
 	natural to call it as data segments are added to a bio.
 ..
 
-  wbc_account_cgroup_owner(@wbc, @page, @bytes)
+  wbc_account_cgroup_owner(@wbc, @folio, @bytes)
 	各データセグメントが書き出されるたびに呼び出します。この関数は
 	ライトバックセッションのいつ呼び出されるか正確には気にしませんが、
 	データセグメントが bio に追加されるときに呼び出すのがもっとも
@@ -4797,8 +5033,8 @@ Deprecated v1 Core Features
 
   - "cgroup.clone_children" is removed.
 
-  - /proc/cgroups is meaningless for v2.  Use "cgroup.controllers" file
-    at the root instead.
+  - /proc/cgroups is meaningless for v2.  Use "cgroup.controllers" or
+    "cgroup.stat" files at the root instead.
 ..
 
 - 名前付きの階層を含む複数階層構造はサポートされません
@@ -4810,8 +5046,8 @@ Deprecated v1 Core Features
 
 - "cgroup.clone_children" は削除されました
 
-- /proc/cgroup は v2 では無意味です。root にある "cgroup.controllers"
-  ファイルを代わりに使います
+- /proc/cgroup は v2 では無意味です。代わりに root にある
+  "cgroup.controllers" か "cgroup.stat" ファイルを使ってください。
 
 ..
   Issues with v1 and Rationales for v2
