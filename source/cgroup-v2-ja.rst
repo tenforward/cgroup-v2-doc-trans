@@ -4518,14 +4518,23 @@ RDMA インターフェースファイル
 
 DMEM
 ----
+..
+  The "dmem" controller regulates the distribution and accounting of
+  device memory regions. Because each memory region may have its own page size,
+  which does not have to be equal to the system page size, the units are always bytes.
+..
 
-The "dmem" controller regulates the distribution and accounting of
-device memory regions. Because each memory region may have its own page size,
-which does not have to be equal to the system page size, the units are always bytes.
+"dmem" コントローラーはデバイスのメモリー領域の分配とアカウンティング
+を制御します。各メモリー領域には独自のページサイズがあるかもしれないた
+め、システムのページサイズと同じである必要はなく、単位は常にバイトです。
 
-DMEM Interface Files
-~~~~~~~~~~~~~~~~~~~~
-
+..
+  DMEM Interface Files
+  ~~~~~~~~~~~~~~~~~~~~
+..
+DMEM インターフェースファイル
+~~~~~~~~~~~~~~~~~~~~~~~~~
+..
   dmem.max, dmem.min, dmem.low
 	A readwrite nested-keyed file that exists for all the cgroups
 	except root that describes current configured resource limit
@@ -4538,6 +4547,20 @@ DMEM Interface Files
 
 	The semantics are the same as for the memory cgroup controller, and are
 	calculated in the same way.
+..
+
+  dmem.max, dmem.min, dmem.low
+	root 以外のすべての cgroup に存在する、読み書き可能なネストし
+	たキーのファイル。リージョンの現在の設定されたリソース制限を記
+	述します。
+
+	xe での例は次のようになります::
+
+	  drm/0000:03:00.0/vram0 1073741824
+	  drm/0000:03:00.0/stolen max
+
+	この指定の意味は memory cgroup コントローラーと同じであり、計
+	算方法も同じです。
 
   dmem.capacity
 	A read-only file that describes maximum region capacity.
